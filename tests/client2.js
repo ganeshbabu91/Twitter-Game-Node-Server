@@ -7,7 +7,11 @@ socket.on('connected',function(){
 	console.log("client log : connected to server!!");
 	var username = 'Karun';
 	// Join the game created by Ganesh
-	socket.emit('joinGame',{gameid: 1, user: username});
+	socket.emit('newGame',username);
+
+	socket.on('wait',function(data){
+		console.log(data.msg);
+	});	
 
 	socket.on('GameRoomReady', function(data){
 		console.log("Ready to start a game. "+data.game.players[0]+ " Vs "+ data.game.players[1]);
@@ -15,7 +19,8 @@ socket.on('connected',function(){
 		var gameInput = {
 			user: username,
 	    	gameid: data.game.id,
-	    	teamPlayers: ['messi'],
+	    	teamPlayers: ['messi','suarez','neymar'],
+	    	stream: '',
 	    	trackJson: {
 	    		track: 'messi'
 	    	}
@@ -27,18 +32,10 @@ socket.on('connected',function(){
 		console.log("%o",data);
 		if(!data.streamOpened){
 			setTimeout(function(){
-				//socket.emit('endGame',{gameid:data.gameid});
+				socket.emit('endGame',{gameid:data.gameid});
 				socket.destroy();
 			},30000);
 		}
 	});
-	
-	// This is for testing purpose. Both parameters should come from UI
-    /*var gameInput = {
-    	playersArray: ['messi'],
-    	trackJson: {
-    		track: 'messi'
-    	}
-    }
-	socket.emit("startGame",gameInput);*/
+
 });

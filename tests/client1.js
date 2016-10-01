@@ -21,7 +21,8 @@ socket.on('connected',function(){
 		var gameInput = {
 			user: username,
 	    	gameid: data.game.id,
-	    	teamPlayers: ['ronaldo'],
+	    	teamPlayers: ['ronaldo','bale','benzema'],
+	    	stream: '',
 	    	trackJson: {
 	    		track: 'ronaldo'
 	    	}
@@ -34,20 +35,10 @@ socket.on('connected',function(){
 		if(!data.streamOpened){
 			console.log("timer started");
 			setTimeout(function(){
-				//socket.emit('endGame',{gameid:data.gameid});
+				socket.emit('endGame',{gameid:data.gameid});
 				socket.destroy();
 			},30000);
 		}
 		
 	});
-
-	// This is for testing purpose. Both parameters should come from UI
-    /*var gameInput = {
-    	gameid = data.gameid;
-    	teamPlayers: ['ronaldo'],
-    	trackJson: {
-    		track: 'ronaldo'
-    	}
-    }
-	socket.emit("startGame",gameInput);*/
 });

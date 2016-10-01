@@ -32,10 +32,6 @@ server.listen(port);
 var io = require('socket.io').listen(server);
 var twitterModule = require('twitter');
 
-stream = null;
-currentStream = null;
-
-// Set up twitter account for this game
 var twitter = new twitterModule({
   consumer_key: 'Gb9Mmk98uXhFB4KgVbY6VhEWf',
   consumer_secret: 'txTZa0pr25p6WtyFZtvwzcWvkDEvrwqNDYgUwvZWapBuZuuVkm',
@@ -44,56 +40,74 @@ var twitter = new twitterModule({
 });
 var games = [];
 var gameid = 0;
+var createGame = true;
+
+
+function getCreateGame(){
+  return createGame;
+}
+
+function toggleCreateGame(){
+  if(createGame )
+    createGame = false;
+  else
+    createGame = true;
+}
+
+function getGameId(){
+  return gameid;
+}
+
 function random(){
   gameid += 1;
   return gameid;
 }
+
 io.on('connection',function(client){
   // Handshake with client
   console.log("Client connecting...");
   client.emit('connected');
+
   // Create a new game
   client.on("newGame", function(user){
-    var gameid = random();
-    var game = {
-      id : gameid,
-      createdBy : user,
-      status: 'waiting',
-      players: [user],
-      gameOutput:[],
-    }
-    games.push(game);
-    // Add the current user to this game
-    client.join(gameid);
-    // Sends wait signal to the player asking him to wait for his opponent to join
-    var response = "new game (game id : "+gameid+") created. Wait for opponent to join!";
-    client.emit('wait',{id: gameid, msg: response});
-  });
 
-  // Join the Game
-  client.on('joinGame',function(data){
-    var gameid = data.gameid;
-    var user = data.user;
-    console.log("Games = %o",games);
-    for(var game in games){
-      if(games[game].id == gameid && games[game].status == 'waiting'){
-        // Add this player to the game
-        console.log("Game room match found");
-        games[game].players.push(user);
-        games[game].status = 'locked';
-        client.join(gameid);
-        io.to(gameid).emit('GameRoomReady',{game: games[game]});
-        return;
+    if(getCreateGame()){
+      toggleCreateGame();
+      var gameid = random();
+      var game = {
+        id : gameid,
+        createdBy : user,
+        status: 'waiting',
+        players: [user],
+        gameOutput:[],
+      }
+      games.push(game);
+      // Add the current user to this game
+      client.join(gameid);
+      // Sends wait signal to the player asking him to wait for his opponent to join
+      var response = "new game (game id : "+gameid+") created. Wait for opponent to join!";
+      client.emit('wait',{id: gameid, msg: response});
+    }else{
+      toggleCreateGame();
+      var gameid = getGameId();
+      for(var game in games){
+        if(games[game].id == gameid && games[game].status == 'waiting'){
+          console.log('Game room matched');
+          games[game].players.push(user);
+          games[game].status = 'locked';
+          client.join(gameid);
+          io.to(gameid).emit('GameRoomReady',{game: games[game]});
+          return;
+        }
       }
     }
 
-
   });
 
-  client.on("endGame", function(data){
-    console.log("Game over : "+data.gameid);
-    currentStream.destroy();
-  });
+    var tempStream = null;
+    function getTempStream(){
+      return tempStream;
+    }
 
   // Start reading tweets once the client sends 'readTweets' event
   client.on("startGame",function(gameInput){
@@ -124,53 +138,50 @@ io.on('connection',function(client){
     /*
       GAME CORE LOGIC - READ TWEETS AND COMPUTE SCORES
     */
-    if(stream == null){
-      twitter.stream('statuses/filter', trackJson,  function(stream) {
-        stream.on('data', function(tweet) {
-          var tweetText = tweet.text.toLowerCase();
-          for(i=0;i<teamPlayers.length;i++){
-             if(tweetText.indexOf(teamPlayers[i])!=-1){
-               tempOutput.output[i].value += 1;
-             }
-          }
-          console.log("output = %o",tempOutput);
+    twitter.stream('statuses/filter', trackJson,  function(stream) {
+      console.log('trackJson %o',trackJson);
+      console.log('Stream starting %o',stream);
 
-
-          io.to(gameid).emit('liveResults',{streamOpened: streamOpened,gameid: gameid, user: gameInput.user, output: tempOutput.output});
-
-          streamOpened = true;
-          currentStream = stream;
-          /*setTimeout(function(){
-            stream.destroy();
-          },1000)*/
-
-          // End this game if both player's results are ready 
-         /* if(games[game].gameOutput.length == 2){
-            games[game].status = 'gameover';
-            io.to(gameid).emit('endGame', {game: games[game]});
-            return;
-          }*/
-
-        });
-
-        stream.on('error', function(error) {
-          console.log("Oops!! %o",error);
-        });
+      stream.on('data', function(tweet) {
+        var tweetText = tweet.text.toLowerCase();
+        for(i=0;i<teamPlayers.length;i++){
+           if(tweetText.indexOf(teamPlayers[i])!=-1){
+             tempOutput.output[i].value += 1;
+           }
+        }
+        console.log("output = %o",tempOutput);
+        io.to(gameid).emit('liveResults',{streamOpened: streamOpened,gameid: gameid, user: gameInput.user, output: tempOutput.output});
+        streamOpened = true;
+        if(tempStream == null)
+          tempStream = stream;
+        console.log('tempStream ',tempStream);     
       });
-    }
 
+      stream.on('error', function(error) {
+        console.log("Oops!! %o",error);
+        console.log('Stream Inside Error %o',stream);
+      });
+
+      console.log('Stream Out %o',stream);
+    });
     console.log("stream over");
 
   });
 
-  client.on('endGame', function(){
-    console.log("Game over");
+  client.on("endGame", function(data){
+    console.log("Game over : "+data.gameid);
+    var temp123 = getTempStream();
+    console.log('Destroy Stream %o',temp123);
+    temp123.destroy();
   });
 
 });
+
+
 io.on('error',function(){
   console.log("error in socket connection");
 });
+
 server.on('error', onError);
 server.on('listening', onListening);
 
