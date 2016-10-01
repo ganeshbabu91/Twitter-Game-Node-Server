@@ -26,6 +26,68 @@ var server = http.createServer(app);
  */
 
 server.listen(port);
+/* >> CUSTOM CODE STARTS FROM HERE << */
+
+// Set up socket for this server
+var io = require('socket.io').listen(server);
+var twitterModule = require('twitter');
+
+stream = null;
+
+// Set up twitter account for this game
+var twitter = new twitterModule({
+  consumer_key: 'Gb9Mmk98uXhFB4KgVbY6VhEWf',
+  consumer_secret: 'txTZa0pr25p6WtyFZtvwzcWvkDEvrwqNDYgUwvZWapBuZuuVkm',
+  access_token_key: '630011793-yd5PDsb01v6f5YbZI0myHtM8O2bYTErNOdWNaC4e',
+  access_token_secret: '2ueuny4yCnd25kigxR7ly8DKCZNiStEOW01tDERjdiRHY'
+});
+
+io.on('connection',function(client){
+  // Handshake with client
+  console.log("Client connecting...");
+  client.emit('connected');
+
+  // Start reading tweets once the client sends 'readTweets' event
+  client.on("startGame",function(gameInput){
+    // Read and parse the game input
+    var playersArray = gameInput.playersArray;
+    var trackJson = gameInput.trackJson;
+    console.log("input is ready");
+
+    // Initialise the game output variable for storing the results
+    var gameOutput = {output:[]};
+    for(i=0;i<playersArray.length;i++){
+      gameOutput.output.push({
+        key: playersArray[i],
+        value: 0
+      });
+    }
+    
+    /*
+      GAME CORE LOGIC - READ TWEETS AND COMPUTE SCORES
+    */
+    if(stream == null){
+      twitter.stream('statuses/filter', trackJson,  function(stream) {
+        stream.on('data', function(tweet) {
+          var tweetText = tweet.text.toLowerCase();
+          for(i=0;i<playersArray.length;i++){
+             if(tweetText.indexOf(playersArray[i])!=-1){
+               gameOutput.output[i].value += 1; 
+              }
+          }
+          console.log("output = %o",gameOutput);
+        });
+
+        stream.on('error', function(error) {
+          console.log("Oops!! %o",error);
+        });
+      });
+    }
+  });
+});
+io.on('error',function(){
+  console.log("error in socket connection");
+});
 server.on('error', onError);
 server.on('listening', onListening);
 
