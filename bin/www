@@ -41,28 +41,80 @@ var twitter = new twitterModule({
   access_token_key: '630011793-yd5PDsb01v6f5YbZI0myHtM8O2bYTErNOdWNaC4e',
   access_token_secret: '2ueuny4yCnd25kigxR7ly8DKCZNiStEOW01tDERjdiRHY'
 });
-
+var games = [];
+var gameid = 0;
+function random(){
+  gameid += 1;
+  return gameid;
+}
 io.on('connection',function(client){
   // Handshake with client
   console.log("Client connecting...");
   client.emit('connected');
+  // Create a new game
+  client.on("newGame", function(user){
+    var gameid = random();
+    var game = {
+      id : gameid,
+      createdBy : user,
+      status: 'waiting',
+      players: [user],
+      gameOutput:[],
+    }
+    games.push(game);
+    // Add the current user to this game
+    client.join(gameid);
+    // Sends wait signal to the player asking him to wait for his opponent to join
+    var response = "new game (game id : "+gameid+") created. Wait for opponent to join!";
+    client.emit('wait',{id: gameid, msg: response});
+  });
+
+  // Join the Game
+  client.on('joinGame',function(data){
+    var gameid = data.gameid;
+    var user = data.user;
+    console.log("Games = %o",games);
+    for(var game in games){
+      if(games[game].id == gameid && games[game].status == 'waiting'){
+        // Add this player to the game
+        console.log("Game room match found");
+        games[game].players.push(user);
+        games[game].status = 'locked';
+        client.join(gameid);
+        io.to(gameid).emit('GameRoomReady',{game: games[game]});
+        return;
+      }
+    }
+
+
+  });
 
   // Start reading tweets once the client sends 'readTweets' event
   client.on("startGame",function(gameInput){
+    console.log("Game started");
+
+    // Parse game input
+    var gameid = gameInput.gameid;
+    for(var game in games){
+      if(games[game].id == gameid && games[game].status != 'started'){
+        games[game].status = 'started';
+      }
+    }
+
     // Read and parse the game input
-    var playersArray = gameInput.playersArray;
+    var teamPlayers = gameInput.teamPlayers;
     var trackJson = gameInput.trackJson;
     console.log("input is ready");
 
     // Initialise the game output variable for storing the results
-    var gameOutput = {output:[]};
-    for(i=0;i<playersArray.length;i++){
-      gameOutput.output.push({
-        key: playersArray[i],
+    var tempOutput = {output:[]};
+    for(i=0;i<teamPlayers.length;i++){
+      tempOutput.output.push({
+        key: teamPlayers[i],
         value: 0
       });
     }
-    
+
     /*
       GAME CORE LOGIC - READ TWEETS AND COMPUTE SCORES
     */
@@ -70,12 +122,27 @@ io.on('connection',function(client){
       twitter.stream('statuses/filter', trackJson,  function(stream) {
         stream.on('data', function(tweet) {
           var tweetText = tweet.text.toLowerCase();
-          for(i=0;i<playersArray.length;i++){
-             if(tweetText.indexOf(playersArray[i])!=-1){
-               gameOutput.output[i].value += 1; 
-              }
+          for(i=0;i<teamPlayers.length;i++){
+             if(tweetText.indexOf(teamPlayers[i])!=-1){
+               tempOutput.output[i].value += 1; 
+             }
           }
-          console.log("output = %o",gameOutput);
+          console.log("output = %o",tempOutput);
+
+
+          io.to(gameid).emit('liveResults',{user: gameInput.user, output: tempOutput.output});
+
+          /*setTimeout(function(){
+            stream.destroy();
+          },1000)*/
+
+          // End this game if both player's results are ready 
+         /* if(games[game].gameOutput.length == 2){
+            games[game].status = 'gameover';
+            io.to(gameid).emit('endGame', {game: games[game]});
+            return;
+          }*/
+
         });
 
         stream.on('error', function(error) {
@@ -83,7 +150,15 @@ io.on('connection',function(client){
         });
       });
     }
+
+    console.log("stream over");
+
   });
+
+  client.on('endGame', function(){
+    console.log("Game over");
+  });
+
 });
 io.on('error',function(){
   console.log("error in socket connection");
