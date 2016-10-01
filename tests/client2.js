@@ -25,7 +25,12 @@ socket.on('connected',function(){
 
 	socket.on('liveResults', function(data){
 		console.log("%o",data);
-		//socket.emit('endGame');
+		if(!data.streamOpened){
+			setTimeout(function(){
+				//socket.emit('endGame',{gameid:data.gameid});
+				socket.destroy();
+			},30000);
+		}
 	});
 	
 	// This is for testing purpose. Both parameters should come from UI

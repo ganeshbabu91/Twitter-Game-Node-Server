@@ -1,6 +1,7 @@
 var io = require('socket.io-client');
 
 var socket = io.connect('http://localhost:3000/');
+streamOpened = false;
 
 // Listen for the response from the server 
 socket.on('connected',function(){
@@ -30,7 +31,14 @@ socket.on('connected',function(){
 
 	socket.on('liveResults', function(data){
 		console.log("%o",data);
-		//socket.emit('endGame');
+		if(!data.streamOpened){
+			console.log("timer started");
+			setTimeout(function(){
+				//socket.emit('endGame',{gameid:data.gameid});
+				socket.destroy();
+			},30000);
+		}
+		
 	});
 
 	// This is for testing purpose. Both parameters should come from UI

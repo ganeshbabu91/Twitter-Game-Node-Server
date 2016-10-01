@@ -33,6 +33,7 @@ var io = require('socket.io').listen(server);
 var twitterModule = require('twitter');
 
 stream = null;
+currentStream = null;
 
 // Set up twitter account for this game
 var twitter = new twitterModule({
@@ -89,10 +90,15 @@ io.on('connection',function(client){
 
   });
 
+  client.on("endGame", function(data){
+    console.log("Game over : "+data.gameid);
+    currentStream.destroy();
+  });
+
   // Start reading tweets once the client sends 'readTweets' event
   client.on("startGame",function(gameInput){
     console.log("Game started");
-
+    var streamOpened = false;
     // Parse game input
     var gameid = gameInput.gameid;
     for(var game in games){
@@ -124,14 +130,16 @@ io.on('connection',function(client){
           var tweetText = tweet.text.toLowerCase();
           for(i=0;i<teamPlayers.length;i++){
              if(tweetText.indexOf(teamPlayers[i])!=-1){
-               tempOutput.output[i].value += 1; 
+               tempOutput.output[i].value += 1;
              }
           }
           console.log("output = %o",tempOutput);
 
 
-          io.to(gameid).emit('liveResults',{user: gameInput.user, output: tempOutput.output});
+          io.to(gameid).emit('liveResults',{streamOpened: streamOpened,gameid: gameid, user: gameInput.user, output: tempOutput.output});
 
+          streamOpened = true;
+          currentStream = stream;
           /*setTimeout(function(){
             stream.destroy();
           },1000)*/
