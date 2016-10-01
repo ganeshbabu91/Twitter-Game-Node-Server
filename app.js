@@ -12,6 +12,12 @@ var app = express();
 
 /* >> CUSTOM CODE STARTS FROM HERE << */
 
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+});
+
 // Set up socket for this server
 var http = require('http'),
     server = http.createServer(app),
@@ -27,6 +33,7 @@ var twitter = new twitterModule({
   access_token_key: '630011793-yd5PDsb01v6f5YbZI0myHtM8O2bYTErNOdWNaC4e',
   access_token_secret: '2ueuny4yCnd25kigxR7ly8DKCZNiStEOW01tDERjdiRHY'
 });
+
 
 // Socket Connection Setup
 io.on('connection',function(client){
